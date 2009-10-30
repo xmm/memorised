@@ -6,6 +6,7 @@ import memcache
 from hashlib import md5
 from functools import wraps
 import inspect
+import types
 
 class memorise(object):
         """Decorate any function or class method/staticmethod with a memcace
@@ -28,8 +29,12 @@ class memorise(object):
             to the same value as the cached return value. Handy for keeping
             models in line if attributes are accessed directly in other
             places, or for pickling instances.
-          `ttl` : integer
-            Tells memcached the time which this value should expire.
+          `ttl` : integer or function
+            If it is function: it should receive one parameter - the value
+            returned by decorated function and to return value ttl for
+            this parameter.
+            If it is integer: tells memcached the time which this value
+            should expire.
             We default to 0 == cache forever. None is turn off caching.
           `update` : boolean
             Refresh ttl value in cache.
@@ -107,13 +112,16 @@ class memorise(object):
                                         # the function/method
                                         output = fn(*args, **kwargs)
                                 if self.update or not exist:
+                                        ttl = self.ttl
+                                        if type(ttl) == types.FunctionType:
+                                                ttl = ttl(output)
                                         if output is None:
                                                 set_value = memcache_none()
                                         else:
                                                 set_value = output
                                         # And push it into memcache
-                                        if self.ttl != None:
-                                                self.mc.set(key, set_value, time=self.ttl)
+                                        if ttl != None:
+                                                self.mc.set(key, set_value, time=ttl)
                                 if output.__class__ is memcache_none:
                                         # Because not-found keys return
                                         # a None value, we use the
